@@ -1,0 +1,14 @@
+name: myenv
+channels:
+  - conda-forge
+dependencies:
+  - python=3
+  - numpy
+  - pandas
+  - matplotlib
+  - nest-asyncio
+  - pystan
+  - statsmodels
+  - arviz
+  - fastapi
+  - uvicorn
