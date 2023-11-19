@@ -3,16 +3,16 @@ Package for generating Joint Return Probabilities for paired extreme events data
 
     MEDiate-JRP/
     ├── app
-    │   ├── __init__.py                                     - initialises folder as a python package
-    │   ├── jrp.py                                          - preprocesses, runs model, make figures
-    │   ├── main.py                                         - handles API
-    │   └── model.stan                                      - specifies the statistical model
+    │   ├── __init__.py                                     - initialises folder as a python package
+    │   ├── jrp.py                                          - preprocesses, runs model, make figures
+    │   ├── main.py                                         - handles API
+    │   └── model.stan                                      - specifies the statistical model
     ├── DATA                                                - folder for output, static files shared by API
-    │   └── README.md
+    │   └── README.md
     ├── docker-compose.yaml                                 - orchestrates containers, ports, volumes 
     ├── Dockerfile                                          - specifies the container that runs the API
     ├── documentation
-    │   └── Overview_of_JRP_estimation_and_Oslo_example.pdf
+    │   └── Overview_of_JRP_estimation_and_Oslo_example.pdf
     ├── environment.yaml                                    - the required python packages
     ├── example_data.csv                                    - example data (Oslo) for testing notebook
     ├── example.json                                        - example data (Oslo) for testing API
@@ -49,3 +49,10 @@ packages we don't need - to run the notebook you have to install that too). Then
 	jupyter run notebook
     
 In the window that opens select notebook.ipynb, proceed as usual. 
+## Todo list
+- unit tests for Stan code
+- integration tests - synthetic data drawn from a known distribution
+- add missing figures
+- save compiled Stan model between runs
+- extend api to give user more control (number of chains, warmup, sampling, etc.)
+- make sure all necessary diagnostics are returned
