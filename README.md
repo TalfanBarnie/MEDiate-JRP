@@ -27,6 +27,11 @@ Package for generating Joint Return Probabilities for paired extreme events data
 Clone the repository to your machine
 
 	git clone https://github.com/TalfanBarnie/MEDiate-JRP.git
+
+Navigate into the repo directory
+
+	cd MEDiate-JRP
+
 Build the container, start the server, run in background
 
     sudo docker compose up --build -d
