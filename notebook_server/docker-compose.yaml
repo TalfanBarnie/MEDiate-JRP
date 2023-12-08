@@ -1,0 +1,9 @@
+version: '1'
+services:
+  infer-jrp:
+    build: .
+    volumes:
+      - "./DATA:/DATA"
+    ports:
+      - "80:80"
+

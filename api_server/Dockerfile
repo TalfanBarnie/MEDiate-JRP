@@ -7,4 +7,4 @@ RUN /bin/bash -c "mamba env create -f environment.yaml"
 RUN ["conda", "run", "-n", "myenv", "python", "-m", "pip", "install", "pystan"] 
 COPY ./app ./app
 ENTRYPOINT ["conda", "run", "-n", "myenv","uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80"]
-#ENTRYPOINT ["conda", "run", "-n", "myenv", "python", "/app/script.py"]
+

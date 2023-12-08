@@ -1,36 +1,56 @@
 # MEDiate-JRP
 Package for generating Joint Return Probabilities for paired extreme events data. Can be run as an API from a container or in a regular Jupyter Notebook. The package consists of the following files:
 
+
     MEDiate-JRP/
-    ├── app
-    │   ├── __init__.py                                     - initialises folder as a python package
-    │   ├── jrp.py                                          - preprocesses, runs model, make figures
-    │   ├── main.py                                         - handles API
-    │   └── model.stan                                      - specifies the statistical model
-    ├── DATA                                                - folder for output, static files shared by API
-    │   └── README.md
-    ├── docker-compose.yaml                                 - orchestrates containers, ports, volumes 
-    ├── Dockerfile                                          - specifies the container that runs the API
+    ├── api_server
+    │   ├── app
+    │   │   ├── __init__.py                                     - initialises folder as a python package
+    │   │   ├── jrp.py                                          - preprocesses, runs model, make figures
+    │   │   ├── main.py                                         - handles API
+    │   │   └── model.stan                                      - specifies the statistical model
+    │   ├── DATA
+    │   │   └── README.md
+    │   ├── docker-compose.yaml                                 - orchestrates containers, ports, volumes
+    │   ├── Dockerfile                                          - specifies the container that runs the API
+    │   ├── environment.yaml                                    - the required python packages
+    │   └── example.json                                        - example data (Oslo) for testing API
     ├── documentation
-    │   └── Overview_of_JRP_estimation_and_Oslo_example.pdf
-    ├── environment.yaml                                    - the required python packages
-    ├── example_data.csv                                    - example data (Oslo) for testing notebook
-    ├── example.json                                        - example data (Oslo) for testing API
-    ├── example_thresholds.csv                              - example data (Oslo) for testing notebook
-    ├── notebook.ipynb                                      - notebook for using jrp locally
+    │   └── Overview_of_JRP_estimation_and_Oslo_example.pdf
+    ├── notebook_server
+    │   ├── app
+    │   │   ├── __init__.py                                     - initialises folder as a python package
+    │   │   ├── jrp.py                                          - preprocesses, runs model, make figures
+    │   │   ├── main.py                                         - handles API
+    │   │   └── model.stan                                      - specifies the statistical model
+    │   ├── DATA
+    │   │   └── README.md
+    │   ├── docker-compose.yaml                                 - orchestrates containers, ports, volumes
+    │   ├── Dockerfile                                          - specifies the container that runs the notebook server
+    │   ├── environment.yaml                                    - the required python packages
+    │   ├── example_data.csv                                    - example data (Oslo) for testing notebook
+    │   ├── example_thresholds.csv                              - example data (Oslo) for testing notebook
+    │   └── notebook.ipynb                                      - notebook for using jrp locally
     └── README.md
 
 
-
-
-## To run as an API
+## To download the repository
 Clone the repository to your machine
 
 	git clone https://github.com/TalfanBarnie/MEDiate-JRP.git
 
-Navigate into the repo directory
+You will be asked for your username and password. For the password github now requires a token:
+- on github, click yur user icon in the top right corner
+- settings -> developer settings -> personal access tokens -> Tokens (classic) -> Generate new token -> Generate new token (classic) 
+- enter you authentifcation code
+- under note give it a name, click "repo" to select al check boxes, then click generate token
+- copy result enter it as password
 
-	cd MEDiate-JRP
+
+## To run the API server
+Navigate into the api server directory
+
+	cd MEDiate-JRP/api_server
 
 Build the container, start the server, run in background
 
@@ -46,15 +66,27 @@ NOTE! This can take a few minutes to run. Returns JSON containing summary statis
     
 Shuts down the container
 
-## To run as a notebook
-Set up a python environment with your preferred environment manager (conda, mamba, pyenv ...) and the packages in environment.yaml.
-(Note Jupyter is not included in the environment.yaml to avoid cluttering up the docker container with
-packages we don't need - to run the notebook you have to install that too). Then
+## To run the notebook server
+Navigate into the notebook server directory
 
-	jupyter run notebook
+	cd MEDiate-JRP/notebook_server
+
+Build the container, start the server, run in background
+
+	sudo docker compose up --build -d
+
+Open a browser go to 
+
+	http://localhost/notebooks/notebook.ipynb
+
+double click the notebook.ipynb to open. Run the contents of the notebook, figures are saved in shared volumed DATA on the host.
+
+	sudo docker compose down
     
-In the window that opens select notebook.ipynb, proceed as usual. 
+Shuts down the container
+
 ## Todo list
+- app folder is the same in both directories, must be a way to have it in build context for both Dockerfiles 
 - unit tests for Stan code
 - integration tests - synthetic data drawn from a known distribution
 - add missing figures

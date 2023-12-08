@@ -1,7 +1,7 @@
-DATA/*.png
-DATA/*.csv
-build/*
-app/__pycache__/
+*/DATA/*.png
+*/DATA/*.csv
+*/build/*
+*/app/__pycache__/
 
 # Created by https://www.toptal.com/developers/gitignore/api/jupyternotebooks
 # Edit at https://www.toptal.com/developers/gitignore?templates=jupyternotebooks
