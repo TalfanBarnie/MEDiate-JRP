@@ -59,6 +59,10 @@ class JRP:
 
         returnProb = 1-lam/marginal_days
 
+        self.marginal_days = marginal_days
+
+        self.marginal_years = marginal_years
+
         data['returnProb'] = returnProb
         data['M'] = len(data['returnProb'])
 
@@ -142,6 +146,8 @@ class JRP:
 
         self.generate_QQ_plot()
 
+        self.generate_jrp_plot()
+
 
 
     def generate_trace_plot(self,filename='/app/DATA/trace_plot.png'):
@@ -157,6 +163,234 @@ class JRP:
         az.plot_pair(self.result,
             var_names = ['sigmat','sigmaf','xit','xif','theta'],
             marginals=True,  kind='kde', divergences=True,figsize=(10,10))
+        plt.savefig(filename)
+
+
+    def generate_jrp_plot(self,filename='app/DATA/jrp_plot.png'):
+        print("Generating JRP plot ...")
+	
+        N_samples =20
+
+        every_n_samples = int(8000/N_samples)
+
+        alpha =0.5
+
+        temp = (az
+			.from_pystan(self.result)
+			.posterior
+			.stack(dimensions={'sample':['chain','draw']})
+		)
+
+	
+
+        lam = self.df_data['date'].sort_values().diff().dropna().mean().total_seconds()/(60*60*24)
+
+
+        fig, axs = plt.subplots(2,2,figsize=(10,10))
+
+        self.df_data.plot.scatter(
+			    x='surge',
+			    y='flow',
+			    ax=axs[0,1],
+			    color='lightgrey',
+			    marker='.'
+			)
+
+        year_contours = np.array([10,50,100,200,500])
+
+        day_contours =  year_contours*365
+
+        marginal_years = self.marginal_years
+
+        jrp_50 = np.percentile(temp['jrp_grid'].values, 50,axis=1)
+
+        for jrp_i in temp['jrp_grid'].values[:,::every_n_samples].T:
+                axs[0,1].tricontour(
+		            self.data['tide_grid'],
+		            self.data['flow_grid'],
+		            jrp_i,
+		            levels=day_contours,
+		            cmap='hsv',
+		            alpha=0.1,
+		            norm=colors.LogNorm(
+		                        vmin=jrp_50.min(), 
+		                        vmax=jrp_50.max()
+		                                )  
+	    )
+
+
+
+        CS = axs[0,1].tricontour(
+		            self.data['tide_grid'],
+		            self.data['flow_grid'],
+		            jrp_50,
+		            levels=day_contours,
+		            alpha=1,
+		            cmap='hsv',
+		            norm=colors.LogNorm(
+		                        vmin=jrp_50.min(), 
+		                        vmax=jrp_50.max()
+		                                )
+		            )    
+	    
+	 
+        axs[0,1].clabel(
+	    CS, 
+	    CS.levels,
+	    fmt={ key:item for key, item in zip(day_contours, year_contours)},
+	    inline=True, 
+	    fontsize=10
+	)
+
+
+        ################################### TIDES #########################################
+
+        axs[1,1].fill_betweenx(
+	    marginal_years,
+	    np.percentile(temp['return_t'].values,20,axis=1),
+	    np.percentile(temp['return_t'].values,80,axis=1),
+	    alpha=0.1      
+	)
+        axs[1,1].plot(
+		np.percentile(temp['return_t'].values,50,axis=1),
+	    marginal_years
+	)
+        axs[1,1].plot(
+		np.percentile(temp['return_t'].values,20,axis=1),
+	    marginal_years,
+	    linestyle='dotted',
+	     c='#1f77b4'
+	)
+        axs[1,1].plot(
+		np.percentile(temp['return_t'].values,80,axis=1),
+		marginal_years,
+		linestyle='dotted',
+	     c='#1f77b4'
+
+	)
+
+        axs[1,1].grid(True, which="both", ls="-", color='0.65')
+        axs[1,1].set_yscale('log')
+        axs[1,1].yaxis.set_major_formatter(ScalarFormatter())
+
+        ################################### Flow #########################################
+
+        axs[0,0].fill_between(
+	    marginal_years,
+	    np.percentile(temp['return_f'].values,20,axis=1),
+	    np.percentile(temp['return_f'].values,80,axis=1),
+	    alpha=0.1      
+	)
+        axs[0,0].plot(
+	    marginal_years,
+		np.percentile(temp['return_f'].values,50,axis=1),
+	    
+	)
+        axs[0,0].plot(
+		marginal_years,
+
+		np.percentile(temp['return_f'].values,20,axis=1),
+	    linestyle='dotted',
+	     c='#1f77b4'
+	)
+        axs[0,0].plot(
+		    marginal_years,
+
+		np.percentile(temp['return_f'].values,80,axis=1),
+		linestyle='dotted',
+	     c='#1f77b4'
+
+	)
+
+        axs[0,0].grid(True, which="both", ls="-", color='0.65')
+        axs[0,0].set_xscale('log')
+        axs[0,0].xaxis.set_major_formatter(ScalarFormatter())
+
+
+
+        tide_lim = [0.4,2.0]
+        axs[0,1].set_xlim(tide_lim)
+        axs[1,1].set_xlim(tide_lim)
+
+        flow_lim = [0.5,7]
+        axs[0,1].set_ylim(flow_lim)
+        axs[0,0].set_ylim(flow_lim)
+
+
+
+        axs[1,0].axis('off')
+
+
+
+        # Hide X and Y axes label marks
+        axs[0,1].xaxis.set_tick_params(
+	    labelbottom=False,
+	    labeltop=True,
+	    bottom=False, 
+	    top=True, 
+
+	)
+        axs[0,1].yaxis.set_tick_params(
+	    labelleft=False,
+	    labelright=True,
+	    left=False, 
+	    right=True
+	)
+        # Hide X and Y axes tick marks
+        #axs[0,1].set_xticks([])
+        #axs[0,1].set_yticks([])
+        axs[0,1].set_xlabel('')
+        axs[0,1].set_ylabel('')
+
+
+        axs[1,1].set_xlabel("Tide m")
+        axs[1,1].set_ylabel("Return period yr")
+
+
+        axs[0,0].set_ylabel("Discharge m3 s-1")
+        axs[0,0].set_xlabel("Return period yr")
+
+
+        axs[0,1].set_xlabel("Tide m")
+        axs[0,1].set_ylabel("Discharge m3 s-1")
+        axs[0,1].yaxis.set_label_position("right")
+        axs[0,1].xaxis.set_label_position("top")
+
+
+
+        axs[0,0].xaxis.set_tick_params(
+	    labeltop=True,
+	    top=True
+	)
+
+        axs[1,1].yaxis.set_tick_params(
+	    labelright=True,
+	    right=True
+	)
+
+
+
+
+        get_t = lambda rp :  np.interp(
+
+		                rp,
+		                marginal_years,
+		                np.percentile(temp['return_t'].values,50,axis=1),
+
+
+		                )
+        get_f = lambda rp :  np.interp(
+
+		                rp,
+		                marginal_years,
+		                np.percentile(temp['return_f'].values,50,axis=1),
+
+
+		                )
+
+
+        plt.subplots_adjust(hspace=0.02,wspace=0.02)
+
         plt.savefig(filename)
 
 
