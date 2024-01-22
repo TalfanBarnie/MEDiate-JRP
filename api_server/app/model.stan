@@ -183,9 +183,9 @@ functions {
     }
     
     real P_and(real tide, real flow, 
-                real mut, real muf, 
-                real xit, real xif, 
-                real sigmat, real sigmaf,
+                real mu1, real mu2, 
+                real xi1, real xi2, 
+                real sigma1, real sigma2,
                 real theta){
     
         real p;
@@ -198,8 +198,8 @@ functions {
         t[1] = tide;
         f[1] = flow;
     
-        ctide =  gpareto_cdf(t, mut, xit, sigmat);
-        cflow =  gpareto_cdf(f, muf, xif, sigmaf);
+        ctide =  gpareto_cdf(t, mu1, xi1, sigma1);
+        cflow =  gpareto_cdf(f, mu2, xi2, sigma2);
         ccop = gumbel_copula_cdf(ctide, cflow, theta);
 
         p = 1 -ctide -cflow + ccop;
@@ -209,9 +209,9 @@ functions {
     }
     
     real JRP(real tide, real flow, 
-                real mut, real muf, 
-                real xit, real xif, 
-                real sigmat, real sigmaf,
+                real mu1, real mu2, 
+                real xi1, real xi2, 
+                real sigma1, real sigma2,
                 real theta, 
                 real lam){
 
@@ -219,9 +219,9 @@ functions {
         real jrp;
 
         pand = P_and( tide,  flow, 
-                 mut,  muf, 
-                 xit,  xif, 
-                 sigmat,  sigmaf,
+                 mu1,  mu2, 
+                 xi1,  xi2, 
+                 sigma1,  sigma2,
                  theta);
 
         jrp = lam/pand;
@@ -238,8 +238,8 @@ functions {
 
     real joint_pdf_lpdf(
         row_vector tf, 
-        real mut, real xit, real sigmat, 
-        real muf, real xif, real sigmaf, 
+        real mu1, real xi1, real sigma1, 
+        real mu2, real xi2, real sigma2, 
         real theta){
     
         vector[1] t;
@@ -253,10 +253,10 @@ functions {
         t[1] = tf[1];
         f[1] = tf[2];
         
-        lpt = gpareto_lpdf(t | mut, xit, sigmat); 
-        lpf = gpareto_lpdf(f | muf, xif, sigmaf);
-        ct = gpareto_cdf(t, mut, xit, sigmat); 
-        cf = gpareto_cdf(f, muf, xif, sigmaf); 
+        lpt = gpareto_lpdf(t | mu1, xi1, sigma1); 
+        lpf = gpareto_lpdf(f | mu2, xi2, sigma2);
+        ct = gpareto_cdf(t, mu1, xi1, sigma1); 
+        cf = gpareto_cdf(f, mu2, xi2, sigma2); 
 
         lpcopula = gumbel_copula_lpdf(ct | cf, theta);
         
@@ -270,50 +270,36 @@ functions {
 
 data {
 
-    int N; // number of events
-    int M; // number of return probabilities
-    int L; // number of evaluations of gpdf
-    int O; // number of tide x flow pairs
-    int P; // number of ppc's
-    int Q; // number of combinations
-    
-    matrix[N,2] events; // N x [tide, flow]
-    real mut; // tide threshold used for mean of tide marginal GPD
-    real muf; // flow threshold used for mean of flow marginal GPD
-    real mut100; // tide threshold used for mean of tide marginal GPD
-    real muf100; // flow threshold used for mean of flow marginal GPD
-    
-    vector[M] returnProb;
-    vector[L] tides_for_pdf;
-    vector[L] flows_for_pdf;
-    real tmax;
-    real fmax;
-    
-    vector[O] tide_grid;
-    vector[O] flow_grid;
 
-    real lam;
+    int N_evnt; //  number of extreme events prodicuced by Eleonora's code
+    int N_grid; //  total number of points in grid for JRP contour plot
+    int N_mrp; // number of points to calculate marginal return periods
+
+    matrix[N_evnt,2] events; // selected extreme events
+    vector[N_evnt] quantiles_1; // marginal empirical quantiles for driver 1 to calculate for events for Q-Q plot
+    vector[N_evnt] quantiles_2; // marginal empirical quantiles for driver 2 to calculate for events for Q-Q plot
+
+    vector[N_grid] grid1; // points for JRP grid for driver 1
+    vector[N_grid] grid2; // points for JRP grid for driver 2
+
+
+    vector[N_mrp] mrp_prob; // marginal return probabilities for calculating driver magnitudes for a given return period (note these are probabilities!)
+
+
+
+    real mu1; // driver 1 threshold used for mean of driver 1 marginal GPD
+    real mu2; // driver 2 threshold used for mean of driver 2 marginal GPD
+    real max1; // driver 1 max value for placing limits on xi1
+    real max2; // driver 2 max value for placing limits on xi2
+    real lam; // mean time interval between events in days
+
+
     
-    //vector[P] v1;
-    //vector[P] v2;
     
-    vector[N] t_quantiles;
-    vector[N] f_quantiles;
-    
-    vector[Q] t_RP_for_JRPS;
-    vector[Q] f_RP_for_JRPS;
 }
 
 transformed data {
-
-  int x_i[0];
-  //real x_r[P];
-  
-  
-  //for (i in 1:P){
-  //    x_r[i] = v2[i];
-  //}
-  
+    int x_i[0];
 
 }
 
@@ -323,12 +309,12 @@ parameters {
 
     // generalised pareto distribution parameters
     // for tides ...
-    real<lower=0> sigmat;
-    real<lower=-sigmat/(tmax-mut)> xit; 
+    real<lower=0> sigma1;
+    real<lower=-sigma1/(max1-mu1)> xi1; 
     
     // ... and for flow:
-    real<lower=0> sigmaf;
-    real<lower=-sigmaf/(fmax-muf)> xif; 
+    real<lower=0> sigma2;
+    real<lower=-sigma2/(max2-mu2)> xi2; 
 
     
     // copula parameters
@@ -341,9 +327,9 @@ parameters {
 model {
 
 
-    for (i in 1:N){
-        events[i] ~ joint_pdf(  mut,  xit,  sigmat, 
-                                muf,  xif,  sigmaf, 
+    for (i in 1:N_evnt){
+        events[i] ~ joint_pdf(  mu1,  xi1,  sigma1, 
+                                mu2,  xi2,  sigma2, 
                                 theta 
                                 );
 
@@ -353,111 +339,82 @@ model {
 
 generated quantities {
 
-    vector[M] return_t;
-    vector[M] return_f;
-    vector[L] tides_gpdf;
-    vector[L] flows_gpdf;
-    vector[O] jrp_grid;
-    vector[N] jrp_events;
-    vector[N] rp_tides;
-    vector[N] rp_flows;
-    vector[1] t;
-    vector[1] f;
-    matrix[N,2] events_hat;
-    vector[N] t_for_quantile;
-    vector[N] f_for_quantile;
-    
-    vector[Q] t_for_JRPS;
-    vector[Q] f_for_JRPS; 
-    vector[Q] t_for_JRPS100;
-    vector[Q] f_for_JRPS100; 
-    
-    vector[Q] JRP_for_RP_pair;
-    vector[Q] JRP_for_RP_pair100;
-    
+    vector[N_grid] jrp_grid;
+    vector[N_mrp]  mrp_1;
+    vector[N_mrp]  mrp_2;
 
-    vector[1] thetas;
-    vector[1] w_guess;
-    vector[1] w;
-    vector[1] u1;
-    vector[1] u2;
-    real t_hat;
-    real f_hat;
-    real v1;
-    real v2[1];
-    
-    
-        
+    vector[N_evnt] jrp_for_events; // JRP values for each event events
+    vector[N_evnt] rp1_for_events; // marginal RP for driver 1 for each event
+    vector[N_evnt] rp2_for_events; // marginal RP for driver 2 for each event
 
-    for (i in 1:N){
-        t_for_quantile[i] = gpareto_ppf(t_quantiles[i], mut, xit, sigmat);
-        f_for_quantile[i] = gpareto_ppf(f_quantiles[i], muf, xif, sigmaf);
-    
-    }
+    vector[N_evnt] d1_for_quantile; // values for quantiles for QQ plot
+    vector[N_evnt] d2_for_quantile; // values for quantiles for QQ plot
 
-    
-    for (i in 1:M){
-        return_t[i] = gpareto_ppf(returnProb[i], mut, xit, sigmat);
-        return_f[i] = gpareto_ppf(returnProb[i], muf, xif, sigmaf);
-    
-    }
-    
-    
-    for (i in 1:L){
-        tides_gpdf[i] = exp(gpareto_lpdf(tides_for_pdf[i:i]| mut, xit, sigmat));
-        flows_gpdf[i] = exp(gpareto_lpdf(flows_for_pdf[i:i]| muf, xif, sigmaf));
-    }
-    
-    for (i in 1:O){
-        jrp_grid[i] = JRP(tide_grid[i], flow_grid[i], 
-                mut, muf, 
-                xit, xif, 
-                sigmat, sigmaf,
+    matrix[N_evnt,2] events_hat; // posterior predictive for pppc plot
+
+
+
+    // calculate JRP grid for making contour plot
+   for (i in 1:N_grid){
+        jrp_grid[i] = JRP(grid1[i], grid2[i], 
+                mu1, mu2, 
+                xi1, xi2, 
+                sigma1, sigma2,
                 theta, 
                 lam);
     }
-    
-    for (i in 1:N){
-        jrp_events[i] = JRP(events[i,1], events[i,2], 
-                mut, muf, 
-                xit, xif, 
-                sigmat, sigmaf,
-                theta, 
-                lam);
-                
-        t[1] = events[i,1];
-        f[1] = events[i,2];
-                
-        rp_tides[i] = lam/(1-gpareto_cdf(t| mut, xit, sigmat));
-        
-        rp_flows[i] = lam/(1-gpareto_cdf(f| muf, xif, sigmaf));
-    }
-    
-    
-    for (i in 1:Q){
-    
-        t_for_JRPS[i] = gpareto_ppf(1 - lam/t_RP_for_JRPS[i], mut, xit, sigmat);
-        f_for_JRPS[i] = gpareto_ppf(1 - lam/f_RP_for_JRPS[i], muf, xif, sigmaf);
-        t_for_JRPS100[i] = gpareto_ppf(1 - lam/t_RP_for_JRPS[i], mut100, xit, sigmat);
-        f_for_JRPS100[i] = gpareto_ppf(1 - lam/f_RP_for_JRPS[i], muf100, xif, sigmaf);
-        
-        JRP_for_RP_pair[i] = JRP(t_for_JRPS[i], f_for_JRPS[i], 
-                mut, muf, 
-                xit, xif, 
-                sigmat, sigmaf,
-                theta, 
-                lam);
-        JRP_for_RP_pair100[i] = JRP(t_for_JRPS100[i], f_for_JRPS100[i], 
-                mut100, muf100, 
-                xit, xif, 
-                sigmat, sigmaf,
-                theta, 
-                lam);        
-    }
-  
-    for (i in 1:N){
 
-       
+    // calculate values of the drivers for different returnperiods
+    // (here return period is expressed as return probability for the ppf function)
+    for (i in 1:N_mrp){
+        mrp_1[i] = gpareto_ppf(mrp_prob[i], mu1, xi1, sigma1);
+        mrp_2[i] = gpareto_ppf(mrp_prob[i], mu2, xi2, sigma2);
+    
+    }
+
+    // calculate the joint return period and marginal return periods for each event
+    for (i in 1:N_evnt){
+
+        vector[1] d1;
+        vector[1] d2;
+
+        jrp_for_events[i] = JRP(events[i,1], events[i,2], 
+                mu1, mu2, 
+                xi1, xi2, 
+                sigma1, sigma2,
+                theta, 
+                lam);
+
+        d1[1] = events[i,1];
+        d2[1] = events[i,2];
+
+        rp1_for_events[i] = lam/(1-gpareto_cdf(d1| mu1, xi1, sigma1));
+        
+        rp2_for_events[i] = lam/(1-gpareto_cdf(d2| mu2, xi2, sigma2));    
+    }
+
+    // calculate the values for the Q-Q plot
+    for (i in 1:N_evnt){
+        d1_for_quantile[i] = gpareto_ppf(quantiles_1[i], mu1, xi1, sigma1);
+        d2_for_quantile[i] = gpareto_ppf(quantiles_2[i], mu2, xi2, sigma2);
+    
+    }
+
+
+    // ppc plot
+    for (i in 1:N_evnt){
+
+
+      vector[1] thetas;
+      vector[1] w_guess;
+      vector[1] w;
+      vector[1] u1;
+      vector[1] u2;
+      real v1;
+      real v2[1];  
+      real d1_hat;
+      real d2_hat;  
+
         v1  = uniform_rng(0,1);
         v2[1]  = uniform_rng(0,1);
         
@@ -477,18 +434,14 @@ generated quantities {
         
         u2 = exp((1-v1)^(1/theta)*log(w));
     
-        t_hat = gpareto_ppf(u1[1], mut, xit, sigmat); 
+        d1_hat = gpareto_ppf(u1[1], mu1, xi1, sigma1); 
         
-        f_hat = gpareto_ppf(u2[1], muf, xif, sigmaf);
+        d2_hat = gpareto_ppf(u2[1], mu2, xi2, sigma2);
         
-        events_hat[i,1] = t_hat;
-        events_hat[i,2] = f_hat;
+        events_hat[i,1] = d1_hat;
+        events_hat[i,2] = d2_hat;
     
     }    
-   
-
-
-
 
 }
 
