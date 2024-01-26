@@ -14,7 +14,7 @@ Package for generating Joint Return Probabilities for paired extreme events data
     │   ├── docker-compose.yaml                                 - orchestrates containers, ports, volumes
     │   ├── Dockerfile                                          - specifies the container that runs the API
     │   ├── environment.yaml                                    - the required python packages
-    │   └── example.json                                        - example data  for testing API
+    │   └── example.json                                        - example data (Oslo) for testing API
     ├── documentation
     │   └── Overview_of_JRP_estimation_and_Oslo_example.pdf
     ├── notebook_server
@@ -24,11 +24,12 @@ Package for generating Joint Return Probabilities for paired extreme events data
     │   │   ├── main.py                                         - handles API
     │   │   └── model.stan                                      - specifies the statistical model
     │   ├── DATA
-    │   │   ├── jextr_api9824h98pot5_daily_7dw.xlsx             - example output from detectExtremeEvents
     │   │   └── README.md
     │   ├── docker-compose.yaml                                 - orchestrates containers, ports, volumes
     │   ├── Dockerfile                                          - specifies the container that runs the notebook server
     │   ├── environment.yaml                                    - the required python packages
+    │   ├── example_data.csv                                    - example data (Oslo) for testing notebook
+    │   ├── example_thresholds.csv                              - example data (Oslo) for testing notebook
     │   └── notebook.ipynb                                      - notebook for using jrp locally
     └── README.md
 
