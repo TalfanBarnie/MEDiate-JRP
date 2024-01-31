@@ -141,7 +141,9 @@ class JRP:
         
        
     @classmethod
-    def from_dict(cls, dct):
+    def from_dict(cls, dct,num_chains=4, num_samples=2000, 
+                 year_contours = np.array([10,50,100,200,500]),
+                 marginal_years = np.geomspace(0.1,500,100)):
         """returns a JRP object built from json
         """
         data = pd.DataFrame(dct['data'])
@@ -152,14 +154,16 @@ class JRP:
 
         inpt = pd.DataFrame(dct['inpt'])
 
-        jrp = cls(data, info, inpt)
+        jrp = cls(data, info, inpt, num_chains=num_chains, num_samples=num_samples, year_contours=year_contours, marginal_years=marginal_years)
         
         return(jrp)
 
 
 
     @classmethod
-    def from_detectExtremeEvents(cls, file):
+    def from_detectExtremeEvents(cls, file,num_chains=4, num_samples=2000, 
+                 year_contours = np.array([10,50,100,200,500]),
+                 marginal_years = np.geomspace(0.1,500,100)):
         """Returns a JRP object built from the output
         of Eleonora Perugini's detectExtremeEvents 
         Matlab code
@@ -171,7 +175,7 @@ class JRP:
         
         inpt = pd.read_excel(file,sheet_name='input')
         
-        jrp = cls(data, info, inpt)
+        jrp = cls(data, info, inpt, num_chains=num_chains, num_samples=num_samples, year_contours=year_contours, marginal_years=marginal_years)
         
         return(jrp)
     
@@ -305,13 +309,19 @@ class JRP:
         print("for the following years:",self.year_contours)
         print("The marginal return period will be calculated at",len(marginal_years),
               "points between ",min(marginal_years),"and",max(marginal_years),"years.")
-        
         print("-------------------------------------------------------------------------")
-        print("USER DEFINED RETURN PERIODS")
+        print("USER DEFINED DRIVER RETURN PERIODS")
         print("-------------------------------------------------------------------------")
-        print("The values of ")
-
-
+        print("Distributions over driver values and JRP will be calculated for user defined")
+        print("return periods of",u_rp_d1_years,"years for",self.driver1.name,"and")
+        print(u_rp_d2_years, "years for",self.driver2.name)
+        print("-------------------------------------------------------------------------")
+        print("USER DEFINED DRIVER VALUES")
+        print("-------------------------------------------------------------------------")
+        print("Distributions over driver marginal return periods and JRP will be calculated for user defined")
+        print("values of",u_val_d1, self.driver1.unit,"for",self.driver1.name,"and")
+        print(u_val_d2, self.driver2.unit, "for",self.driver2.name)
+        print("-------------------------------------------------------------------------")
 
         return()
  
@@ -688,7 +698,7 @@ class JRP:
                                   jrp_coords):
 
                 con = ConnectionPatch(
-                                xyA=d1, xyB=jrp, 
+                                xyA=d2, xyB=jrp, 
                                 coordsA="data", coordsB="data",
                                 axesA=axs[0,0], axesB=axs[0,1],
                                 color="red",linestyle='dashed')
@@ -696,7 +706,7 @@ class JRP:
 
 
                 con = ConnectionPatch(
-                                xyB=d2, xyA=jrp, 
+                                xyB=d1, xyA=jrp, 
                                 coordsB="data", coordsA="data",
                                 axesB=axs[1,1], axesA=axs[0,1],
                                 color="red",linestyle='dashed')
@@ -837,8 +847,9 @@ class JRP:
             CSb, 
             CSb.levels,
             fmt={ key:item for key, item in zip(day_contours, self.year_contours)},
-            inline=True, 
-            fontsize=10
+            inline=False, 
+            fontsize=10,
+            inline_spacing=1
         )
 
 

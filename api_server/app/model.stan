@@ -272,36 +272,20 @@ data {
 
 
     int N_evnt; //  number of extreme events prodicuced by Eleonora's code
-    int N_grid; //  total number of points in grid for JRP contour plot as a function of driver values
-    int N_gridb; //  total number of points in grid for JRP contour plot as a function of driver values
-
+    int N_grid; //  total number of points in grid for JRP contour plot
     int N_mrp; // number of points to calculate marginal return periods
-    int N_umrp; // number of user specified marginal return periods for calculating driver values and JRPs
-    int N_uval; // number of user specified driver values for calculating RPs and JRPs
 
     matrix[N_evnt,2] events; // selected extreme events
     vector[N_evnt] quantiles_1; // marginal empirical quantiles for driver 1 to calculate for events for Q-Q plot
     vector[N_evnt] quantiles_2; // marginal empirical quantiles for driver 2 to calculate for events for Q-Q plot
 
-    vector[N_grid] grid1; // points for JRP grid for driver 1 values
-    vector[N_grid] grid2; // points for JRP grid for driver 2 values
-
-    vector[N_gridb] grid1b; // points for JRP grid for driver 1 RPs (note these are probabilities!)
-    vector[N_gridb] grid2b; // points for JRP grid for driver 2 RPs (note these are probabilities!)
-
-
+    vector[N_grid] grid1; // points for JRP grid for driver 1
+    vector[N_grid] grid2; // points for JRP grid for driver 2
 
 
     vector[N_mrp] mrp_prob; // marginal return probabilities for calculating driver magnitudes for a given return period (note these are probabilities!)
 
-    // Following are user specified return periods used to get distributions over driver values and JRP
-    vector[N_umrp] u_rp_d1; // user specified return periods for driver 1 in days
-    vector[N_umrp] u_rp_d2; // user specified return periods for driver 2 in days
 
-
-    // Following are user specified driver values used to get distributions over return periods and JRP
-    vector[N_uval] u_val_d1; // user specified values for driver 1 in units
-    vector[N_uval] u_val_d2; // user specified values for driver 2 in units
 
     real mu1; // driver 1 threshold used for mean of driver 1 marginal GPD
     real mu2; // driver 2 threshold used for mean of driver 2 marginal GPD
@@ -316,7 +300,6 @@ data {
 
 transformed data {
     int x_i[0];
-
 
 }
 
@@ -356,13 +339,9 @@ model {
 
 generated quantities {
 
-
-  
-    vector[N_grid] jrp_grid;   // JRP grid as a function of driver values
-    vector[N_gridb] jrp_gridb; // JRP grid as a function of marginal return period
-    
-    vector[N_mrp]  mrp_1;      // Marginal Return Periods for driver 1
-    vector[N_mrp]  mrp_2;      // Marginal Return Periods for driver 2
+    vector[N_grid] jrp_grid;
+    vector[N_mrp]  mrp_1;
+    vector[N_mrp]  mrp_2;
 
     vector[N_evnt] jrp_for_events; // JRP values for each event events
     vector[N_evnt] rp1_for_events; // marginal RP for driver 1 for each event
@@ -373,89 +352,17 @@ generated quantities {
 
     matrix[N_evnt,2] events_hat; // posterior predictive for pppc plot
 
-    // MRPs and JRP for use specified driver values
-    vector[N_uval] u_rp_for_d1;
-    vector[N_uval] u_rp_for_d2;
-    vector[N_uval] u_JRP_for_vals;
-
-    // driver values and JRP for user specified RPs
-    vector[N_umrp] u_d1_for_rp;
-    vector[N_umrp] u_d2_for_rp;
-    vector[N_umrp] u_JRP;
 
 
-    // calculate the driver values and JRP for user specified RP
-    for (i in 1:N_umrp){
-
-      u_d1_for_rp[i] =  gpareto_ppf(1 - lam/u_rp_d1[i], mu1, xi1, sigma1);
-
-      u_d2_for_rp[i] =  gpareto_ppf(1 - lam/u_rp_d2[i], mu2, xi2, sigma2);
-
-      u_JRP[i] = JRP(u_d1_for_rp[i], u_d2_for_rp[i], 
-                mu1, mu2, 
-                xi1, xi2, 
-                sigma1, sigma2,
-                theta, 
-                lam);
-    }
-
-
-    // calculate the RP and JRP for user specified driver values
-    for (i in 1:N_uval){
-      vector[1] d1;
-      vector[1] d2;
-
-      d1[1]= u_val_d1[i];
-      d2[1]= u_val_d2[i];
-
-      u_rp_for_d1[i] = lam/(1-gpareto_cdf(d1| mu1, xi1, sigma1));
-
-      u_rp_for_d2[i] = lam/(1-gpareto_cdf(d2| mu2, xi2, sigma2));
-
-      u_JRP_for_vals[i] = JRP(u_val_d1[i], u_val_d2[i], 
-                mu1, mu2, 
-                xi1, xi2, 
-                sigma1, sigma2,
-                theta, 
-                lam);
-
-
-    }
-
-
-
-
-
-    // calculate JRP grid for making contour plot as a function of driver values
+    // calculate JRP grid for making contour plot
    for (i in 1:N_grid){
-        jrp_grid[i] = JRP(
-                grid1[i], grid2[i], 
+        jrp_grid[i] = JRP(grid1[i], grid2[i], 
                 mu1, mu2, 
                 xi1, xi2, 
                 sigma1, sigma2,
                 theta, 
                 lam);
     }
-
-    // calculate JRP grid for making contour plot as a function of return period values
-   for (i in 1:N_gridb){
-        real d1;
-        real d2;
-
-        d1 = gpareto_ppf(grid1b[i], mu1, xi1, sigma1);
-
-        d2 = gpareto_ppf(grid2b[i], mu2, xi2, sigma2);
-
-
-        jrp_gridb[i] = JRP(
-                d1, d2, 
-                mu1, mu2, 
-                xi1, xi2, 
-                sigma1, sigma2,
-                theta, 
-                lam);
-    }
-
 
     // calculate values of the drivers for different returnperiods
     // (here return period is expressed as return probability for the ppf function)

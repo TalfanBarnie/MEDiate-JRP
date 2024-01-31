@@ -7,8 +7,7 @@ RUN /bin/bash -c "mamba env create -f environment.yaml"
 RUN ["conda", "run", "-n", "myenv", "python", "-m", "pip", "install", "pystan"] 
 COPY ./../app ./app
 COPY notebook.ipynb notebook.ipynb
-COPY example_data.csv example_data.csv
-COPY example_thresholds.csv example_thresholds.csv
+COPY DATA/jextr_api9824h98pot5_daily_7dw.xlsx /DATA/jextr_api9824h98pot5_daily_7dw.xlsx
 #ENTRYPOINT ["conda", "run", "-n", "myenv","uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80"]
 #ENTRYPOINT ["conda", "run", "-n", "myenv", "python", "/app/script.py"]
 ENTRYPOINT ["conda", "run", "-n", "myenv", "jupyter",  "notebook", "notebook.ipynb", "--ip",  "0.0.0.0", "--port=80", "--no-browser", "--allow-root", "--NotebookApp.token=''"]

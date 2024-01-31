@@ -177,16 +177,11 @@ class JRP:
     
     def format_data_for_stan(self,
                             marginal_years = np.geomspace(0.1,500,100),
-                            #driver1_RP_for_JRPS =np.array([20,20,200,200])*365, 
-                            #driver2_RP_for_JRPS = np.array([5,100,5,100])*365, 
+                            driver1_RP_for_JRPS =np.array([20,20,200,200])*365, 
+                            driver2_RP_for_JRPS = np.array([5,100,5,100])*365, 
                             n_grid=20,
-                            #P = 1000, 
-                            #L=20
-                            u_rp_d1_years=np.array([20,200]),
-                            u_rp_d2_years=np.array([20,200]),
-                            u_val_d1 = np.array([300,400]),
-                            u_val_d2 = np.array([60,80])
-                            ):
+                            P = 1000, 
+                            L=20):
         """Builds the dict containing all the information Stan needs to fit 
         the JRP distribution and calculate all the necessary values
         for plotting
@@ -213,7 +208,7 @@ class JRP:
         lam = self.data['Time'].sort_values().diff().dropna().mean().total_seconds()/(60*60*24)
         data['lam'] = lam
         
-        # get points for sampling JRP grid as a function of driver value
+        # get points for sampling JRP grid
         _grid_1 = np.linspace(self.driver1.minimum, self.driver1.maximum, n_grid)
         _grid_2 = np.linspace(self.driver2.minimum, self.driver2.maximum, n_grid)
         grid_1, grid_2 = np.meshgrid(_grid_1, _grid_2)
@@ -223,25 +218,13 @@ class JRP:
         data['grid1'] = grid_1
         data['grid2'] = grid_2
         data['N_grid'] = n_grid*n_grid
-
+        
+        
         # get points for marginal return period plots (plotted next to the JRP grid)
         marginal_days = self.marginal_years*365
         marginal_returnprob = 1-lam/marginal_days
         data['mrp_prob'] = marginal_returnprob
         data['N_mrp'] = len(data['mrp_prob'])
-        
-        
-        # get points for sampling JRP grid as a function of return period
-        grid_rp_days = np.geomspace(lam, 500*365, n_grid)
-    
-        grid_rp_days_returnprob = 1-lam/grid_rp_days
-        grid_1b, grid_2b = np.meshgrid(grid_rp_days_returnprob, grid_rp_days_returnprob)
-        grid_1b, grid_2b = grid_1b.flatten(), grid_2b.flatten()
-        data['grid1b'] = grid_1b
-        data['grid2b'] = grid_2b
-        data['N_gridb'] = len(data['grid2b'])
-
-       
         
         
         # quantiles for Q-Q plot
@@ -251,17 +234,6 @@ class JRP:
 
         data['quantiles_1'] = driver1_ecdf(self.data['Driver1'])
         data['quantiles_2'] = driver2_ecdf(self.data['Driver2'])
-
-        # user defined marginal return periods for generating driver values and JRP in years
-        data['u_rp_d1'] = u_rp_d1_years*365
-        data['u_rp_d2'] = u_rp_d2_years*365
-        data['N_umrp'] = len(data['u_rp_d2']) 
-
-
-        # user defined driver values for calculating MRPs and JRPs
-        data['u_val_d1'] = u_val_d1
-        data['u_val_d2'] = u_val_d2
-        data['N_uval'] = len(data['u_val_d2'])
         
         
         self.stan_data = data
@@ -307,12 +279,6 @@ class JRP:
               "points between ",min(marginal_years),"and",max(marginal_years),"years.")
         
         print("-------------------------------------------------------------------------")
-        print("USER DEFINED RETURN PERIODS")
-        print("-------------------------------------------------------------------------")
-        print("The values of ")
-
-
-
         return()
  
     def build_stan_model(self, file_model="app/model.stan"):
@@ -333,12 +299,12 @@ class JRP:
                             num_samples=self.num_samples
                             )
 
-        #self.summary = az.summary(self.result)
+        self.summary = az.summary(self.result)
         
         
     def generate_trace_plot(self,filename=None):
         print("Generating trace plot ...")
-        az.plot_trace(self.result,var_names=['sigma1','xi1','sigma2','xi2','theta'])
+        az.plot_trace(self.result)
         plt.tight_layout()
         if filename is not None:
             plt.savefig(filename)
@@ -357,7 +323,7 @@ class JRP:
         axs[0].violinplot(
             posterior['d1_for_quantile'].values.T,
             self.data['Driver1'].values,
-            #positions = self.data['Driver1'].values,
+            #positions = jrp.data['Driver1'].values,
             #manage_ticks = False,
             widths=width1
 
@@ -377,7 +343,7 @@ class JRP:
         axs[1].violinplot(
             posterior['d2_for_quantile'].values.T,
             self.data['Driver2'].values,
-            #positions = self.data['Driver1'].values,
+            #positions = jrp.data['Driver1'].values,
             #manage_ticks = False,
             widths=width2
 
@@ -724,560 +690,4 @@ class JRP:
             plt.savefig(filename)
             
 
-
-
-    def generate_jrp_plot2(self,filename=None,driver1_coords=None,
-                                driver2_coords=None,jrp_coords=None,
-                                PLOT_ALL_DATA = False,  
-                                PLOT_USER_D1D2 = False,  
-                                PLOT_USER_MRPS = False):
-                
-
-        temp = (az
-            .from_pystan(self.result)
-            .posterior
-            .stack(dimensions={'sample':['chain','draw']})
-        )
-
-
-        posterior = az.from_pystan(self.result).posterior.stack({'sample':['chain','draw']})
-
-        lam = self.stan_data['lam']
-
-
-        fig, axs = plt.subplots(2,2,figsize=(10,10))
-
-
-
-
-
-        day_contours =  self.year_contours*365
-
-        jrp_50 = np.percentile(temp['jrp_grid'].values, 50,axis=1)
-
-        # We plot every_n_samples
-        N_samples =20
-        every_n_samples = int(8000/N_samples)
-        for jrp_i in temp['jrp_grid'].values[:,::every_n_samples].T:
-                axs[0,1].tricontour(
-                    self.stan_data['grid1'],
-                    self.stan_data['grid2'],
-                    jrp_i,
-                    levels=day_contours,
-                    cmap='hsv',
-                    alpha=0.1,
-                    norm=colors.LogNorm(
-                                vmin=jrp_50.min(), 
-                                vmax=jrp_50.max()
-                                        )  
-        )
-
- 
-
-        CS = axs[0,1].tricontour(
-                    self.stan_data['grid1'],
-                    self.stan_data['grid2'],
-                    jrp_50,
-                    levels=day_contours,
-                    alpha=1,
-                    cmap='hsv',
-                    norm=colors.LogNorm(
-                                vmin=jrp_50.min(), 
-                                vmax=jrp_50.max()
-                                        )
-                    )    
-
-
-        axs[0,1].clabel(
-            CS, 
-            CS.levels,
-            fmt={ key:item for key, item in zip(day_contours, self.year_contours)},
-            inline=True, 
-            fontsize=10
-        )
-
-
-        ################################### JRP contours function of RP #####################
-
-        jrp_50b = np.percentile(temp['jrp_gridb'].values, 50,axis=1)
-
-        # We plot every_n_samples
-        N_samples =20
-        every_n_samples = int(8000/N_samples)
-        for jrp_i in temp['jrp_gridb'].values[:,::every_n_samples].T:
-                axs[1,0].tricontour(
-                    (1/365)*lam/(1-self.stan_data['grid1b']),
-                    (1/365)*lam/(1-self.stan_data['grid2b']),
-                    jrp_i,
-                    levels=day_contours,
-                    cmap='hsv',
-                    alpha=0.1,
-                    norm=colors.LogNorm(
-                                vmin=jrp_50.min(), 
-                                vmax=jrp_50.max()
-                                        )  
-        )
-                
-                
-        
-        CSb = axs[1,0].tricontour(
-                    (1/365)*lam/(1-self.stan_data['grid1b']),
-                    (1/365)*lam/(1-self.stan_data['grid2b']),
-                    jrp_50b,
-                    levels=day_contours,
-                    alpha=1,
-                    cmap='hsv',
-                    norm=colors.LogNorm(
-                                vmin=jrp_50.min(), 
-                                vmax=jrp_50.max()
-                                        )
-                    )    
-
-        axs[1,0].clabel(
-            CSb, 
-            CSb.levels,
-            fmt={ key:item for key, item in zip(day_contours, self.year_contours)},
-            inline=True, 
-            fontsize=10
-        )
-
-
-
-
-
-        ################################### Driver1 #########################################
-
-        axs[1,1].fill_betweenx(
-            self.marginal_years,
-            np.percentile(temp['mrp_1'].values,20,axis=1),
-            np.percentile(temp['mrp_1'].values,80,axis=1),
-            alpha=0.1      
-        )
-        axs[1,1].plot(
-            np.percentile(temp['mrp_1'].values,50,axis=1),
-            self.marginal_years
-        )
-        axs[1,1].plot(
-            np.percentile(temp['mrp_1'].values,20,axis=1),
-            self.marginal_years,
-            linestyle='dotted',
-            c='#1f77b4'
-        )
-        axs[1,1].plot(
-            np.percentile(temp['mrp_1'].values,80,axis=1),
-            self.marginal_years,
-            linestyle='dotted',
-            c='#1f77b4'
-
-        )
-
-
-
-        ################################### Driver 2 #########################################
-
-        axs[0,0].fill_between(
-            self.marginal_years,
-            np.percentile(temp['mrp_2'].values,20,axis=1),
-            np.percentile(temp['mrp_2'].values,80,axis=1),
-            alpha=0.1      
-        )
-        axs[0,0].plot(
-            self.marginal_years,
-            np.percentile(temp['mrp_2'].values,50,axis=1),
-
-        )
-        axs[0,0].plot(
-            self.marginal_years,
-            np.percentile(temp['mrp_2'].values,20,axis=1),
-            linestyle='dotted',
-            c='#1f77b4'
-        )
-        axs[0,0].plot(
-            self.marginal_years,
-            np.percentile(temp['mrp_2'].values,80,axis=1),
-            linestyle='dotted',
-            c='#1f77b4'
-
-        )
-
-
-
-
-
-        ###### Plot all data ###############################################
-
-        if PLOT_ALL_DATA:
-            
-            # Plot extreme events in JRP as function of values
-            self.data.plot.scatter(
-                x='Driver1',
-                y='Driver2',
-                ax=axs[0,1],
-                #color='lightgrey',
-                #marker='.'
-                color='#1f77b4',
-                marker='o'
-            )
-
-            # plot the median and distribution over MRP space also
-            df=self.generate_table()
-            axs[1,0].scatter(
-                df['Marginal Return period for r24h (RP, years)']['median'],
-                df['Marginal Return period for API (RP, years)']['median'],
-                marker='.'
-            )
-            
-            # plot distributions 
-            for i in range(self.stan_data['N_evnt']):
-
-                az.plot_kde(
-                    posterior['rp2_for_events'].isel(rp2_for_events_dim_0=i).values/365,
-                    posterior['rp1_for_events'].isel(rp1_for_events_dim_0=i).values/365,
-                    ax=axs[1,0],
-                    hdi_probs=[0.5],
-                    contourf_kwargs={"colors": ['#1f77b4'],'alpha':0.1},
-                    contour_kwargs={"colors": ['#1f77b4'], "linestyles":["dotted"]}
-                )
-
-
-            
-        
-                
-
-        ###### Axes tick params ###############################################
-
-        axs[0,0].xaxis.set_tick_params(
-            labeltop=True,
-            top=True,
-            labelbottom=False,
-            bottom=False
-            )
-
-        axs[0,1].xaxis.set_tick_params(
-            labelbottom=False,
-            labeltop=True,
-            bottom=False, 
-            top=True, 
-
-        )
-
-        axs[0,1].yaxis.set_tick_params(
-            labelleft=False,
-            labelright=True,
-            left=False, 
-            right=True
-        )
-
-        axs[1,1].yaxis.set_tick_params(
-            labelleft=False,
-            labelright=True,
-            left=False, 
-            right=True 
-        )
-
-        ###### Axes tick label formatters ###############################################
-
-        axs[0,0].xaxis.set_major_formatter(ScalarFormatter())
-        axs[1,0].xaxis.set_major_formatter(ScalarFormatter())
-        axs[0,1].yaxis.set_major_formatter(ScalarFormatter())
-        axs[1,1].yaxis.set_major_formatter(ScalarFormatter())
-
-
-
-        ###### Axes label positions ###############################################
-        axs[0,0].xaxis.set_label_position("top")
-        axs[0,1].xaxis.set_label_position("top")
-        axs[0,1].yaxis.set_label_position("right")
-        axs[1,1].yaxis.set_label_position("right")
-        axs[1,1].xaxis.set_label_position("bottom")
-
-
-
-        ###### All axes scales ###############################################
-
-        axs[0,0].set_xscale('log')
-        axs[1,0].set_xscale('log')
-        axs[1,0].set_yscale('log')
-        axs[1,1].set_yscale('log')
-
-
-        ###### All axes labels ###############################################
-
-        axs[0,0].set_ylabel(self.driver2.name + " values ("+self.driver2.unit+")")
-        axs[0,0].set_xlabel(self.driver2.name + " marginal return priod (yr)")
-        axs[0,1].set_xlabel(self.driver1.name + " values ("+self.driver1.unit+")")
-        axs[0,1].set_ylabel(self.driver2.name + " values ("+self.driver2.unit+")")
-        axs[1,0].set_xlabel(self.driver2.name + " marginal return priod (yr)")
-        axs[1,0].set_ylabel(self.driver1.name + " marginal return priod (yr)")
-        axs[1,1].set_xlabel(self.driver1.name + " values ("+self.driver1.unit+")")
-        axs[1,1].set_ylabel(self.driver1.name + " marginal return priod (yr)")
-
-
-        ###### Limits for all axes ###############################################
-
-        axs[0,0].set_ylim([
-            self.driver2.minimum,
-            self.driver2.maximum
-        ])
-
-        axs[0,1].set_ylim([
-            self.driver2.minimum,
-            self.driver2.maximum
-        ])
-
-        axs[0,1].set_xlim([
-            self.driver1.minimum,
-            self.driver1.maximum
-        ])
-
-        xlim = axs[0,0].get_xlim()
-        ylim = axs[1,1].get_ylim()
-
-        axs[0,0].set_xlim((lam/365,100))
-        axs[1,0].set_xlim((lam/365,100))
-        axs[1,0].set_ylim((lam/365,100))
-        axs[1,1].set_ylim((lam/365,100))
-        axs[1,1].set_xlim([
-            self.driver1.minimum,
-            self.driver1.maximum
-        ])
-
-
-
-
-        ###### Plot distribution over (mrp1, mrp2) for user specified (d1,d2)  ##
-        if PLOT_USER_MRPS:
-
-            for i in range(self.stan_data['N_uval']):
-                
-                # get the coordinates we need
-                u_r1 = posterior['u_rp_for_d1'].isel(u_rp_for_d1_dim_0=i).median().item()/365
-                u_r2 = posterior['u_rp_for_d2'].isel(u_rp_for_d2_dim_0=i).median().item()/365
-                u_d1 = self.stan_data['u_val_d1'][i]
-                u_d2 = self.stan_data['u_val_d2'][i]
-                
-                
-                # plot location on (mrp1, mrp2)
-                axs[0,1].scatter(u_d1, u_d2, color='#1f77b4')
-                
-                con = ConnectionPatch(
-                                xyA=[u_r2,u_r1], xyB=[u_r2,u_d2], 
-                                coordsA="data", coordsB="data",
-                                axesA=axs[1,0], axesB=axs[0,0],
-                                color='#1f77b4',linestyle='dotted')
-                
-                fig.add_artist(con)
-                
-                
-                
-                con = ConnectionPatch(
-                                xyA=[u_r2,u_d2], xyB=[u_d1,u_d2], 
-                                coordsA="data", coordsB="data",
-                                axesA=axs[0,0], axesB=axs[0,1],
-                                color='#1f77b4',linestyle='dotted')
-                
-                fig.add_artist(con)
-                
-                
-                con = ConnectionPatch(
-                                xyA=[u_r2,u_r1], xyB=[u_d1,u_r1], 
-                                coordsA="data", coordsB="data",
-                                axesA=axs[1,0], axesB=axs[1,1],
-                                color='#1f77b4',linestyle='dotted')
-                
-                fig.add_artist(con)
-                
-                
-                con = ConnectionPatch(
-                                xyA=[u_d1,u_r1], xyB=[u_d1,u_d2], 
-                                coordsA="data", coordsB="data",
-                                axesA=axs[1,1], axesB=axs[0,1],
-                                color='#1f77b4',linestyle='dotted')
-                
-                fig.add_artist(con)
-                
-                
-                # plot the distribution over (d1, d2)
-                az.plot_kde(
-                        posterior['u_rp_for_d2'].isel(u_rp_for_d2_dim_0=i).values/365,
-                        posterior['u_rp_for_d1'].isel(u_rp_for_d1_dim_0=i).values/365,
-                        ax=axs[1,0],
-                        hdi_probs=[0.5],
-                        contourf_kwargs={"colors": ['#1f77b4'],'alpha':0.1},
-                        contour_kwargs={"colors": ['#1f77b4'], "linestyles":["dotted"]}
-                    )
-                
-                
-                u_d1_ax, u_d2_ax  = (axs[0,1].transData + axs[0,1].transAxes.inverted()).transform([u_d1,u_d2])
-                
-                ax_inset = axs[0,1].inset_axes([u_d1_ax, u_d2_ax,0.2,0.2]) #transform=axs[1,0].transData
-                
-                (posterior['u_JRP_for_vals'].isel(u_JRP_for_vals_dim_0=i)/365).plot.hist(ax=ax_inset,alpha=0.5)
-
-                med = (posterior['u_JRP_for_vals'].isel(u_JRP_for_vals_dim_0=i)/365).median()
-                ymax = ax_inset.get_ylim()[1]
-                ax_inset.plot(
-                            [med,med],
-                            [0,ymax],
-                    color='#1f77b4'
-                )
-                ax_inset.text(med, ymax, str(round(med.item(),3)),horizontalalignment='center',color='#1f77b4')
-                
-                
-                ax_inset.xaxis.set_major_locator(plt.MaxNLocator(2))
-                ax_inset.spines['top'].set_visible(False)
-                ax_inset.spines['right'].set_visible(False)
-                ax_inset.spines['left'].set_visible(False)
-                ax_inset.yaxis.set_tick_params(labelleft=False)
-                ax_inset.set_yticks([])
-                ax_inset.set_title("");
-                ax_inset.set_xlabel("JRP years")
-                ax_inset.set_facecolor = None
-                ax_inset.patch.set_alpha(0)
-                ax_inset.patch.set_alpha(0)
-                ax_inset.patch.set_facecolor('#909090')
-                ax_inset.spines['bottom'].set_color('#1f77b4')
-                ax_inset.tick_params(axis='x', colors='#1f77b4')
-                ax_inset.xaxis.label.set_color('#1f77b4')
-                
-
-        ###### Plot distribution over (d1,d2) for user specified (mrp1, mrp2) ##
-
-        if PLOT_USER_D1D2:
-
-            for i in range(self.stan_data['N_umrp']):
-                
-                # get the coordinates we need
-                u_r1 = self.stan_data['u_rp_d1'][i]/365
-                u_r2 = self.stan_data['u_rp_d2'][i]/365
-                u_d1 = posterior['u_d1_for_rp'].isel(u_d1_for_rp_dim_0=i).median().item()
-                u_d2 = posterior['u_d2_for_rp'].isel(u_d2_for_rp_dim_0=i).median().item()
-            
-            
-                # plot location on (mrp1, mrp2)
-                axs[1,0].scatter(u_r2, u_r1, color='#1f77b4')
-                
-                con = ConnectionPatch(
-                                xyA=[u_r2,u_r1], xyB=[u_r2,u_d2], 
-                                coordsA="data", coordsB="data",
-                                axesA=axs[1,0], axesB=axs[0,0],
-                                color='#1f77b4',linestyle='dotted')
-                
-                fig.add_artist(con)
-                
-                
-                
-                con = ConnectionPatch(
-                                xyA=[u_r2,u_d2], xyB=[u_d1,u_d2], 
-                                coordsA="data", coordsB="data",
-                                axesA=axs[0,0], axesB=axs[0,1],
-                                color='#1f77b4',linestyle='dotted')
-                
-                fig.add_artist(con)
-                
-                
-                con = ConnectionPatch(
-                                xyA=[u_r2,u_r1], xyB=[u_d1,u_r1], 
-                                coordsA="data", coordsB="data",
-                                axesA=axs[1,0], axesB=axs[1,1],
-                                color='#1f77b4',linestyle='dotted')
-                
-                fig.add_artist(con)
-                
-                
-                con = ConnectionPatch(
-                                xyA=[u_d1,u_r1], xyB=[u_d1,u_d2], 
-                                coordsA="data", coordsB="data",
-                                axesA=axs[1,1], axesB=axs[0,1],
-                                color='#1f77b4',linestyle='dotted')
-                
-                fig.add_artist(con)
-                
-            
-                # plot the distribution over (d1, d2)
-                az.plot_kde(
-                        posterior['u_d1_for_rp'].isel(u_d1_for_rp_dim_0=i).values,
-                        posterior['u_d2_for_rp'].isel(u_d2_for_rp_dim_0=i).values,
-                        ax=axs[0,1],
-                        hdi_probs=[0.5],
-                        contourf_kwargs={"colors": ['#1f77b4'],'alpha':0.1},
-                        contour_kwargs={"colors": ['#1f77b4'], "linestyles":["dotted"]}
-                    )
-                
-                
-                u_r2_ax, u_r1_ax  = (axs[1,0].transData + axs[1,0].transAxes.inverted()).transform([u_r2,u_r1])
-                #u_r2_ax, u_r1_ax = axs[1,0].transData.inverted().transform([u_r2,u_r1])
-                
-                ax_inset = axs[1,0].inset_axes([u_r2_ax, u_r1_ax,0.2,0.2]) #transform=axs[1,0].transData
-                
-                (posterior['u_JRP'].isel(u_JRP_dim_0=i)/365).plot.hist(ax=ax_inset,alpha=0.5)
-
-                med = (posterior['u_JRP'].isel(u_JRP_dim_0=i)/365).median()
-                ymax = ax_inset.get_ylim()[1]
-                ax_inset.plot(
-                            [med,med],
-                            [0,ymax],
-                    color='#1f77b4'
-                )
-                ax_inset.text(med, ymax, str(round(med.item(),3)),horizontalalignment='center',color='#1f77b4')
-                
-                
-                ax_inset.xaxis.set_major_locator(plt.MaxNLocator(2))
-                ax_inset.spines['top'].set_visible(False)
-                ax_inset.spines['right'].set_visible(False)
-                ax_inset.spines['left'].set_visible(False)
-                ax_inset.yaxis.set_tick_params(labelleft=False)
-                ax_inset.set_yticks([])
-                ax_inset.set_title("");
-                ax_inset.set_xlabel("JRP years")
-                ax_inset.set_facecolor = None
-                ax_inset.patch.set_alpha(0)
-                ax_inset.patch.set_alpha(0)
-                ax_inset.patch.set_facecolor('#909090')
-                ax_inset.spines['bottom'].set_color('#1f77b4')
-                ax_inset.tick_params(axis='x', colors='#1f77b4')
-                ax_inset.xaxis.label.set_color('#1f77b4')
-
-                
-        ###### Grid settings for all axes ########################################
-
-        axs[0,0].grid(True, which="both", ls="-", color='0.9')
-        axs[1,0].grid(True, which="both", ls="-", color='0.9')
-        axs[1,1].grid(True, which="both", ls="-", color='0.9')
-        axs[0,1].grid(True, which="both", ls="-", color='0.9')
-
-
-        ###### Figure labels ########################################
-
-            
-        axs[0,0].text(0.05, 0.95, '(a)',
-            horizontalalignment='center',
-            verticalalignment='center',
-                    fontsize=12,
-            transform = axs[0,0].transAxes) 
-
-        axs[0,1].text(0.05, 0.95, '(b)',
-            horizontalalignment='center',
-            verticalalignment='center',
-                    fontsize=12,
-            transform = axs[0,1].transAxes) 
-
-        axs[1,0].text(0.05, 0.95, '(c)',
-            horizontalalignment='center',
-            verticalalignment='center',
-                    fontsize=12,
-            transform = axs[1,0].transAxes) 
-
-        axs[1,1].text(0.05, 0.95, '(d)',
-            horizontalalignment='center',
-            verticalalignment='center',
-                    fontsize=12,
-            transform = axs[1,1].transAxes) 
-
-        ###### Final adjustments ########################################
-
-
-        plt.subplots_adjust(hspace=0.02,wspace=0.02)
-
-        if filename is not None:
-            plt.savefig(filename)
+    
