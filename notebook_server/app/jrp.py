@@ -189,7 +189,11 @@ class JRP:
                             u_rp_d1_years=np.array([20,200]),
                             u_rp_d2_years=np.array([20,200]),
                             u_val_d1 = np.array([300,400]),
-                            u_val_d2 = np.array([60,80])
+                            u_val_d2 = np.array([60,80]),
+                            grid_d1_min = None,
+                            grid_d1_max = None,
+                            grid_d2_min = None,
+                            grid_d2_max = None
                             ):
         """Builds the dict containing all the information Stan needs to fit 
         the JRP distribution and calculate all the necessary values
@@ -218,8 +222,25 @@ class JRP:
         data['lam'] = lam
         
         # get points for sampling JRP grid as a function of driver value
-        _grid_1 = np.linspace(self.driver1.minimum, self.driver1.maximum, n_grid)
-        _grid_2 = np.linspace(self.driver2.minimum, self.driver2.maximum, n_grid)
+        # we want the minimum and maximum JRP grid values to span the range 
+        # of the data as well as the desired marginal return periods
+        if grid_d1_min is None:
+            grid_d1_min = self.driver1.minimum
+
+        if grid_d1_max is None:
+            grid_d1_max = self.driver1.maximum
+
+        if grid_d2_min is None:
+            grid_d2_min = self.driver2.minimum
+
+        if grid_d2_max is None:
+            grid_d2_max = self.driver2.maximum
+
+
+        _grid_1 = np.linspace(grid_d1_min, grid_d1_max, n_grid)
+        _grid_2 = np.linspace(grid_d2_min, grid_d2_max, n_grid)
+
+
         grid_1, grid_2 = np.meshgrid(_grid_1, _grid_2)
         grid_1, grid_2 = grid_1.flatten(), grid_2.flatten()
         grid_1, grid_2 
@@ -301,10 +322,10 @@ class JRP:
         print("JRP CONTOUR PLOT CONFIGURATION")
         print("-------------------------------------------------------------------------")
         print("JRP grid for the contour plot will be calculated at the following points")
-        print(n_grid, "points between", self.driver1.minimum,self.driver1.unit, 
-              "and",self.driver1.maximum,self.driver1.unit,  "for driver 1")
-        print(n_grid, "points between", self.driver2.minimum,self.driver2.unit, 
-              "and", self.driver2.maximum,self.driver2.unit,  "for driver 2")
+        print(n_grid, "points between",grid_d1_min,self.driver1.unit, 
+              "and",grid_d1_max,self.driver1.unit,  "for driver 1")
+        print(n_grid, "points between", grid_d2_min,self.driver2.unit, 
+              "and", grid_d2_max,self.driver2.unit,  "for driver 2")
         print("giving a grid with a total of",n_grid*n_grid, "points, contoured")
         print("for the following years:",self.year_contours)
         print("The marginal return period will be calculated at",len(marginal_years),
@@ -364,15 +385,36 @@ class JRP:
 
         width1 = (lims1[1]-lims1[0])/20
 
-        axs[0].violinplot(
-            posterior['d1_for_quantile'].values.T,
-            self.data['Driver1'].values,
-            #positions = self.data['Driver1'].values,
-            #manage_ticks = False,
-            widths=width1
+        data1 =  posterior['d1_for_quantile'].values
 
-            );
-        axs[0].plot(lims1, lims1)
+        for i, absissa in enumerate(self.data['Driver1'].values):
+
+            d1 = data1[i]
+            absissa = np.array([absissa])
+
+            d1 = d1[~np.isnan(d1)]
+
+
+            violin_parts = axs[0].violinplot(
+                d1,
+                absissa,
+                #positions = self.data['Driver1'].values,
+                #manage_ticks = False,
+                widths=width1,
+                );
+        
+            for pc in violin_parts['bodies']:
+                pc.set_facecolor('#1f77b4')
+                pc.set_edgecolor('#1f77b4')
+
+            
+            for partname in ('cbars', 'cmins', 'cmaxes'):#, 'cmeans', 'cmedians'):
+                vp = violin_parts[partname]
+                vp.set_edgecolor('#1f77b4')
+                #vp.set_linewidth(1)
+
+
+        axs[0].plot(lims1, lims1, c=u'#ff7f0e')
         axs[0].set_xlim(lims1)
         axs[0].set_ylim(lims1)
         axs[0].set_title("Q-Q plot for marginal distribution of\n"+ self.driver1.name+" "+ self.driver1.unit)
@@ -384,19 +426,40 @@ class JRP:
 
         width2 = (lims2[1]-lims2[0])/20
 
-        axs[1].violinplot(
-            posterior['d2_for_quantile'].values.T,
-            self.data['Driver2'].values,
-            #positions = self.data['Driver1'].values,
-            #manage_ticks = False,
-            widths=width2
+        data2 =  posterior['d2_for_quantile'].values
 
+        for i, absissa in enumerate(self.data['Driver2'].values):
+
+            d2 = data2[i]
+            absissa = np.array([absissa])
+
+            d2 = d2[~np.isnan(d2)]
+
+            violin_parts = axs[1].violinplot(
+                d2,
+                absissa,
+                #positions = self.data['Driver1'].values,
+                #manage_ticks = False,
+                widths=width2,
             );
+
+
+            for pc in violin_parts['bodies']:
+                pc.set_facecolor('#1f77b4')
+                pc.set_edgecolor('#1f77b4')
+
+            
+            for partname in ('cbars', 'cmins', 'cmaxes'):#, 'cmeans', 'cmedians'):
+                vp = violin_parts[partname]
+                vp.set_edgecolor('#1f77b4')
+                #vp.set_linewidth(1)
+
+
 
         axs[1].set_xlim(lims2)
         axs[1].set_ylim(lims2)
 
-        axs[1].plot(lims2, lims2)
+        axs[1].plot(lims2, lims2, c=u'#ff7f0e')
 
 
 
@@ -424,11 +487,11 @@ class JRP:
         # the statistics we want to calculate
         # new stats can be appended here
         funcs = {
-            "mean":lambda x: np.mean(x,axis=1), 
-            "median":lambda x: np.median(x,axis=1), 
-            "std":lambda x: np.std(x, axis=1),
-            "pc10":lambda x: np.percentile(x,10, axis=1),
-            "pc90":lambda x: np.percentile(x,90, axis=1)
+            "mean":lambda x: np.nanmean(x,axis=1), 
+            "median":lambda x: np.nanmedian(x,axis=1), 
+            "std":lambda x: np.nanstd(x, axis=1),
+            "pc10":lambda x: np.nanpercentile(x,10, axis=1),
+            "pc90":lambda x: np.nanpercentile(x,90, axis=1)
         }
 
 
@@ -519,7 +582,8 @@ class JRP:
 
         day_contours =  self.year_contours*365
 
-        jrp_50 = np.percentile(temp['jrp_grid'].values, 50,axis=1)
+        print("NOTE: np.nanperctile used to calculate jrp_50")
+        jrp_50 = np.nanpercentile(temp['jrp_grid'].values, 50,axis=1)
 
         # We plot every_n_samples
         N_samples =20
@@ -569,22 +633,22 @@ class JRP:
 
         axs[1,1].fill_betweenx(
             self.marginal_years,
-            np.percentile(temp['mrp_1'].values,20,axis=1),
-            np.percentile(temp['mrp_1'].values,80,axis=1),
+            np.nanpercentile(temp['mrp_1'].values,20,axis=1),
+            np.nanpercentile(temp['mrp_1'].values,80,axis=1),
             alpha=0.1      
         )
         axs[1,1].plot(
-            np.percentile(temp['mrp_1'].values,50,axis=1),
+            np.nanpercentile(temp['mrp_1'].values,50,axis=1),
             self.marginal_years
         )
         axs[1,1].plot(
-            np.percentile(temp['mrp_1'].values,20,axis=1),
+            np.nanpercentile(temp['mrp_1'].values,20,axis=1),
             self.marginal_years,
             linestyle='dotted',
              c='#1f77b4'
         )
         axs[1,1].plot(
-            np.percentile(temp['mrp_1'].values,80,axis=1),
+            np.nanpercentile(temp['mrp_1'].values,80,axis=1),
             self.marginal_years,
             linestyle='dotted',
              c='#1f77b4'
@@ -605,24 +669,24 @@ class JRP:
 
         axs[0,0].fill_between(
             self.marginal_years,
-            np.percentile(temp['mrp_2'].values,20,axis=1),
-            np.percentile(temp['mrp_2'].values,80,axis=1),
+            np.nanpercentile(temp['mrp_2'].values,20,axis=1),
+            np.nanpercentile(temp['mrp_2'].values,80,axis=1),
             alpha=0.1      
         )
         axs[0,0].plot(
             self.marginal_years,
-            np.percentile(temp['mrp_2'].values,50,axis=1),
+            np.nanpercentile(temp['mrp_2'].values,50,axis=1),
 
         )
         axs[0,0].plot(
             self.marginal_years,
-            np.percentile(temp['mrp_2'].values,20,axis=1),
+            np.nanpercentile(temp['mrp_2'].values,20,axis=1),
             linestyle='dotted',
              c='#1f77b4'
         )
         axs[0,0].plot(
             self.marginal_years,
-            np.percentile(temp['mrp_2'].values,80,axis=1),
+            np.nanpercentile(temp['mrp_2'].values,80,axis=1),
             linestyle='dotted',
              c='#1f77b4'
 
@@ -722,7 +786,7 @@ class JRP:
         return(fig)
     
     def get_summary(self):
-        return(az.summary(self.result))
+        return(az.summary(self.result,skipna=True))
     
     
     def generate_corner_plot(self,filename=None):
@@ -763,7 +827,7 @@ class JRP:
 
         day_contours =  self.year_contours*365
 
-        jrp_50 = np.percentile(temp['jrp_grid'].values, 50,axis=1)
+        jrp_50 = np.nanpercentile(temp['jrp_grid'].values, 50,axis=1)
 
         # We plot every_n_samples
         N_samples =20
@@ -809,7 +873,7 @@ class JRP:
 
         ################################### JRP contours function of RP #####################
 
-        jrp_50b = np.percentile(temp['jrp_gridb'].values, 50,axis=1)
+        jrp_50b = np.nanpercentile(temp['jrp_gridb'].values, 50,axis=1)
 
         # We plot every_n_samples
         N_samples =20
@@ -860,22 +924,22 @@ class JRP:
 
         axs[1,1].fill_betweenx(
             self.marginal_years,
-            np.percentile(temp['mrp_1'].values,20,axis=1),
-            np.percentile(temp['mrp_1'].values,80,axis=1),
+            np.nanpercentile(temp['mrp_1'].values,20,axis=1),
+            np.nanpercentile(temp['mrp_1'].values,80,axis=1),
             alpha=0.1      
         )
         axs[1,1].plot(
-            np.percentile(temp['mrp_1'].values,50,axis=1),
+            np.nanpercentile(temp['mrp_1'].values,50,axis=1),
             self.marginal_years
         )
         axs[1,1].plot(
-            np.percentile(temp['mrp_1'].values,20,axis=1),
+            np.nanpercentile(temp['mrp_1'].values,20,axis=1),
             self.marginal_years,
             linestyle='dotted',
             c='#1f77b4'
         )
         axs[1,1].plot(
-            np.percentile(temp['mrp_1'].values,80,axis=1),
+            np.nanpercentile(temp['mrp_1'].values,80,axis=1),
             self.marginal_years,
             linestyle='dotted',
             c='#1f77b4'
@@ -888,24 +952,24 @@ class JRP:
 
         axs[0,0].fill_between(
             self.marginal_years,
-            np.percentile(temp['mrp_2'].values,20,axis=1),
-            np.percentile(temp['mrp_2'].values,80,axis=1),
+            np.nanpercentile(temp['mrp_2'].values,20,axis=1),
+            np.nanpercentile(temp['mrp_2'].values,80,axis=1),
             alpha=0.1      
         )
         axs[0,0].plot(
             self.marginal_years,
-            np.percentile(temp['mrp_2'].values,50,axis=1),
+            np.nanpercentile(temp['mrp_2'].values,50,axis=1),
 
         )
         axs[0,0].plot(
             self.marginal_years,
-            np.percentile(temp['mrp_2'].values,20,axis=1),
+            np.nanpercentile(temp['mrp_2'].values,20,axis=1),
             linestyle='dotted',
             c='#1f77b4'
         )
         axs[0,0].plot(
             self.marginal_years,
-            np.percentile(temp['mrp_2'].values,80,axis=1),
+            np.nanpercentile(temp['mrp_2'].values,80,axis=1),
             linestyle='dotted',
             c='#1f77b4'
 

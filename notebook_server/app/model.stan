@@ -75,7 +75,6 @@ functions {
     
 
 
-
     //***************************************************************************************
     //
     // Ben Goodrich's Copula functions from 
@@ -207,7 +206,8 @@ functions {
         return p;
     
     }
-    
+
+
     real JRP(real tide, real flow, 
                 real mu1, real mu2, 
                 real xi1, real xi2, 
@@ -228,7 +228,8 @@ functions {
 
         return jrp;
         }
-   
+
+
 
     //***************************************************************************************
     //
